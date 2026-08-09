@@ -83,10 +83,10 @@
 
 		<p class="sr-only">Bol for Teen Taal: Dha-din-din-dha-dha-dhin-dhin-dha-na-tin-tin-ta-tete-dhin-dhin-tat (16 beats)</p>
 
-		<!-- Audio sources (ek-gun uploaded) -->
-		<audio id="audio-teen" src="Assets/Teen taal ek gun.m4a.mp4" loop preload="metadata"></audio>
-		<audio id="audio-dadra" src="Assets/Dadra ek gun.m4a.mp4" loop preload="metadata"></audio>
-		<audio id="audio-kaha" src="Assets/Kaharwa ek gun.m4a.mp4" loop preload="metadata"></audio>
+		<!-- Audio sources (ek-gun uploaded). We will attempt to load base64 wrappers from .b64 files and convert to data URIs so audio plays directly. -->
+		<audio id="audio-teen" data-src-file="Assets/Teen taal ek gun.m4a.mp4" data-b64="teen.b64.txt" loop preload="metadata"></audio>
+		<audio id="audio-dadra" data-src-file="Assets/Dadra ek gun.m4a.mp4" data-b64="dadra.b64.txt" loop preload="metadata"></audio>
+		<audio id="audio-kaha" data-src-file="Assets/Kaharwa ek gun.m4a.mp4" data-b64="kaha.b64.txt" loop preload="metadata"></audio>
 
 	</div>
 
@@ -302,6 +302,30 @@
 		// Accessibility: if user navigates by keyboard, allow Enter on prompt
 		startPrompt.tabIndex = 0;
 		startPrompt.addEventListener('keydown', e=>{ if(e.key==='Enter') startPrompt.click(); });
+
+		// Try to load base64 text files (created in repo root) and set audio src to data URIs so audio plays even when opened via file://
+		(function tryLoadB64(){
+			const audioEls = [document.getElementById('audio-teen'), document.getElementById('audio-dadra'), document.getElementById('audio-kaha')];
+			audioEls.forEach(a=>{
+				const b64path = a.getAttribute('data-b64');
+				const fallback = a.getAttribute('data-src-file');
+				if(!b64path) return;
+				fetch(b64path).then(r=>{
+					if(!r.ok) throw new Error('b64 not found');
+					return r.text();
+				}).then(txt=>{
+					// some editors may include newlines; remove whitespace
+					const clean = txt.replace(/\s+/g,'');
+					a.src = 'data:audio/mp4;base64,' + clean;
+				}).catch(err=>{
+					// fallback to direct asset if base64 file not available or fetch blocked
+					a.src = fallback;
+				}).finally(()=>{
+					// ensure playbackRate follows the speed selector
+					a.playbackRate = Number(speedSel.value);
+				});
+			});
+		})();
 
 	</script>
 </body>
