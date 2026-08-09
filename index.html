@@ -1,15 +1,308 @@
-TAAL
-The architecture of Rhythm
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
+	<title>TAAL — Interactive Kathak</title>
+	<style>
+		:root{--bg:#fff;--muted:#f5e9d6;--active:#d73a3a;--ui:#222}
+		html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Arial,sans-serif;color:var(--ui);background:var(--bg)}
+		.wrap{max-width:1100px;margin:18px auto;padding:18px}
+		header h1{margin:0 0 6px;font-size:20px}
+		.intro{opacity:.9;margin-bottom:12px}
+		.controls{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+		.tabs{display:flex;gap:8px}
+		.tabs button{padding:8px 12px;border-radius:8px;border:1px solid #ddd;background:#fff;cursor:pointer}
+		.tabs button[disabled]{opacity:.45;cursor:not-allowed}
+		.speed{margin-left:auto}
+		#stage{border-radius:10px;border:1px solid #eee;min-height:420px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fafafa;position:relative}
+		#svgRoot{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+		.landing{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:auto}
+		.landing .prompt{width:160px;height:160px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer}
+		.glow-ring{position:relative;width:120px;height:120px;border-radius:50%;display:block}
+		.glow-ring::before{content:'';position:absolute;inset:-6px;border-radius:50%;background:conic-gradient(from 0deg, rgba(215,58,58,.06), rgba(215,58,58,.22), rgba(215,58,58,.06));filter:blur(8px);animation:rotate 2.6s linear infinite}
+		@keyframes rotate{to{transform:rotate(360deg)}}
+		.hint{margin-top:12px;text-align:center;font-size:13px;color:#666}
+		.foot-active{fill:var(--active) !important;stroke:var(--active) !important}
+		.foot-inactive{fill:var(--muted) !important;stroke:var(--muted) !important;opacity:1}
+		.foot-pulse{animation:footMove .18s ease}
+		@keyframes footMove{from{transform:translateY(0)}50%{transform:translateY(-6px)}to{transform:translateY(0)}}
+		.legend{position:absolute;left:12px;bottom:12px;background:#fff;padding:8px;border-radius:8px;border:1px solid #eee;font-size:13px}
+		.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+		.candidate:hover{outline:3px dashed rgba(215,58,58,.45);cursor:pointer}
+		#mapper{position:absolute;right:12px;top:12px;background:#fff;padding:10px;border-radius:8px;border:1px solid #eee;font-size:13px;display:none}
+		@media (max-width:700px){.wrap{padding:12px}.controls{flex-wrap:wrap}.landing .prompt{width:120px;height:120px}}
+	</style>
+</head>
+<body>
+	<div class="wrap">
+		<header>
+			<h1>TAAL — The architecture of Rhythm</h1>
+			<div class="intro">Explore Teen, Dadra and Kaharwa taals with foot animations and audio at X1/X2/X4 speeds.</div>
+		</header>
 
-Exploring the anatomy of Taal—the heartbeat of Indian classical music, and how its rhythm guides Kathak dancers and Tabla players to move, listen, and perform in harmony.
+		<div class="controls">
+			<div class="tabs" role="tablist" aria-label="Taals">
+				<button id="tab-teen" data-src="Assets/Kathak interactive 1.svg">Teen Taal</button>
+				<button id="tab-dadra" data-src="Assets/Kathak interactive 2.svg">Dadra Taal</button>
+				<button id="tab-kaha" data-src="Assets/Kathak interactive 3.svg">Kaharwa Taal</button>
+				<button disabled>Jhap Taal (inactive)</button>
+				<button disabled>Ek Taal (inactive)</button>
+			</div>
 
-LET’S EXPLORE 5 TYPES OF ‘TAAL’
-- Teen Taal
-- Dadra Taal
-- Kaharwa Taal
-- Jhap Taal
-- Ek Taal
+			<div class="speed">
+				<label for="speedSelect">Speed</label>
+				<select id="speedSelect">
+					<option value="1" selected>X1 (Ek Gun)</option>
+					<option value="2">X2 (Do Gun)</option>
+					<option value="4">X4 (Chau Gun)</option>
+				</select>
+			</div>
+		</div>
 
-We will be showing it in X1 Ek Gun, X2 Do Gun and X4 Chau Gun Speeds.
+		<div id="stage" aria-live="polite">
+			<div id="svgRoot" role="img" aria-label="Taal visualisation">
+				<!-- SVG will be inlined here -->
+			</div>
 
-This with help us understand the 'Bol' along with the Foot movements of each Taal.
+			<div class="landing" id="landing">
+				<div style="text-align:center">
+					<div class="prompt" id="startPrompt" title="Click to enter">
+						<div class="glow-ring" aria-hidden="true"></div>
+					</div>
+					<div class="hint">Click the glowing feet to explore</div>
+				</div>
+			</div>
+
+			<div class="legend">Audio: <span id="audioLabel">—</span></div>
+			<div id="mapper" aria-hidden="true">
+				<div id="mapperMsg">Click the right foot in the image</div>
+				<div style="margin-top:8px;display:flex;gap:8px"><button id="mapperReset">Reset</button><button id="mapperDone">Done</button></div>
+			</div>
+		</div>
+
+		<p class="sr-only">Bol for Teen Taal: Dha-din-din-dha-dha-dhin-dhin-dha-na-tin-tin-ta-tete-dhin-dhin-tat (16 beats)</p>
+
+		<!-- Audio sources (ek-gun uploaded) -->
+		<audio id="audio-teen" src="Assets/Teen taal ek gun.m4a.mp4" loop preload="metadata"></audio>
+		<audio id="audio-dadra" src="Assets/Dadra ek gun.m4a.mp4" loop preload="metadata"></audio>
+		<audio id="audio-kaha" src="Assets/Kaharwa ek gun.m4a.mp4" loop preload="metadata"></audio>
+
+	</div>
+
+	<script>
+		// Minimal interactive logic. Assumes the SVGs include two main foot elements (right/left)
+		const tabTeen = document.getElementById('tab-teen');
+		const tabDadra = document.getElementById('tab-dadra');
+		const tabKaha = document.getElementById('tab-kaha');
+		const svgRoot = document.getElementById('svgRoot');
+		const landing = document.getElementById('landing');
+		const startPrompt = document.getElementById('startPrompt');
+		const speedSel = document.getElementById('speedSelect');
+		const audioLabel = document.getElementById('audioLabel');
+
+		const audios = {
+			teen: document.getElementById('audio-teen'),
+			dadra: document.getElementById('audio-dadra'),
+			kaha: document.getElementById('audio-kaha')
+		};
+
+		// Bol sequences as right (R) and left (L)
+		const sequences = {
+			teen: 'R L R L L R L R R L R L L R L R'.split(' '),
+			dadra: 'R L R L R L'.split(' '),
+			kaha: 'R L R L R L R L'.split(' ')
+		};
+
+		let currentAudio = null;
+		let currentSequence = sequences.teen;
+		let beatCount = currentSequence.length;
+		let feet = {R:null,L:null};
+
+		function setActiveFoot(side){
+			if(!feet.R || !feet.L) return;
+			if(side==='R'){
+				feet.R.classList.add('foot-active'); feet.R.classList.remove('foot-inactive');
+				feet.L.classList.add('foot-inactive'); feet.L.classList.remove('foot-active');
+				feet.R.classList.add('foot-pulse');
+				setTimeout(()=>feet.R && feet.R.classList.remove('foot-pulse'),160);
+			} else {
+				feet.L.classList.add('foot-active'); feet.L.classList.remove('foot-inactive');
+				feet.R.classList.add('foot-inactive'); feet.R.classList.remove('foot-active');
+				feet.L.classList.add('foot-pulse');
+				setTimeout(()=>feet.L && feet.L.classList.remove('foot-pulse'),160);
+			}
+		}
+
+		function resetFeetStyle(){
+			if(feet.R) { feet.R.classList.add('foot-inactive'); feet.R.classList.remove('foot-active'); }
+			if(feet.L) { feet.L.classList.add('foot-inactive'); feet.L.classList.remove('foot-active'); }
+		}
+
+		function inlineSVG(path, cb){
+			fetch(path).then(r=>{
+				if(!r.ok) throw new Error('SVG not found: '+path);
+				return r.text();
+			}).then(txt=>{
+				svgRoot.innerHTML = txt;
+				// wait a tick for DOM parse
+				requestAnimationFrame(()=>cb && cb());
+			}).catch(err=>{
+				svgRoot.innerHTML = '<div style="padding:24px;color:#999">SVG not found: '+path+'<br>Please place the matching SVG inside the Assets folder.</div>';
+				console.warn(err);
+			});
+		}
+
+		function detectFeet(){
+			feet = {R:null,L:null};
+			const svg = svgRoot.querySelector('svg');
+			if(!svg) return;
+			// try common selectors
+			const right = svg.querySelector("[id*='right'], [class*='right'], [id*='R'], [data-foot='right']");
+			const left = svg.querySelector("[id*='left'], [class*='left'], [id*='L'], [data-foot='left']");
+			if(right && left){ feet.R = right; feet.L = left; return; }
+
+			// fallback: find elements that include 'foot' in id/class
+			const candidates = svg.querySelectorAll("[id*='foot'], [class*='foot'], [data-foot]");
+			if(candidates.length>=2){ feet.R = candidates[0]; feet.L = candidates[1]; return; }
+
+			// final fallback: pick two prominent <g> or <circle> elements
+			const gs = svg.querySelectorAll('g, circle, path');
+			if(gs.length>=2){ feet.R = gs[0]; feet.L = gs[1]; return; }
+		}
+
+		function attachSync(audio, seqKey){
+			currentAudio = audio;
+			currentSequence = sequences[seqKey];
+			beatCount = currentSequence.length;
+			audioLabel.textContent = seqKey.toUpperCase() + ' • looping';
+
+			audio.playbackRate = Number(speedSel.value);
+			audio.pause();
+			audio.currentTime = 0;
+			audio.play().catch(()=>{});
+
+			// ensure metadata loaded
+			function onMeta(){ }
+			if(audio.readyState>=1){ /* ok */ }
+
+			audio.removeEventListener('timeupdate', audio._tick);
+			audio._tick = ()=>{
+				if(!audio.duration || !isFinite(audio.duration)) return;
+				// split the audio duration evenly across beats
+				const beatDur = audio.duration / beatCount;
+				const cur = audio.currentTime % audio.duration;
+				const idx = Math.floor(cur / beatDur) % beatCount;
+				const side = currentSequence[idx];
+				setActiveFoot(side);
+			};
+			audio.addEventListener('timeupdate', audio._tick);
+		}
+
+		// speed change updates playbackRate
+		speedSel.addEventListener('change', ()=>{
+			const rate = Number(speedSel.value);
+			Object.values(audios).forEach(a=>{ if(a) a.playbackRate = rate; });
+		});
+
+		// Tab clicks
+		function activateTab(button, audioKey){
+			const src = button.dataset.src;
+			inlineSVG(src, ()=>{
+				detectFeet();
+				resetFeetStyle();
+				// Bring overlay down if present
+				if(landing && !landing.hidden){ landing.style.display='none'; }
+
+				// If automatic detection seems unreliable, enable mapper so user can click exact elements
+				function looksAutomatic(el, side){
+					if(!el) return false;
+					const id = (el.id||'').toLowerCase();
+					const cls = (el.getAttribute('class')||'').toLowerCase();
+					if(id.includes(side) || cls.includes(side) || el.dataset && el.dataset.foot===side) return true;
+					return false;
+				}
+
+				const autoOK = feet.R && feet.L && (looksAutomatic(feet.R,'right') || looksAutomatic(feet.R,'r')) && (looksAutomatic(feet.L,'left') || looksAutomatic(feet.L,'l'));
+				if(!autoOK){ enableMapper(); }
+
+				// choose audio
+				const audio = audios[audioKey];
+				attachSync(audio, audioKey);
+			});
+		}
+
+		tabTeen.addEventListener('click', ()=>activateTab(tabTeen,'teen'));
+		tabDadra.addEventListener('click', ()=>activateTab(tabDadra,'dadra'));
+		tabKaha.addEventListener('click', ()=>activateTab(tabKaha,'kaha'));
+
+		// Landing prompt
+		startPrompt.addEventListener('click', ()=>{
+			// hide landing and load default (Teen)
+			landing.style.display = 'none';
+			activateTab(tabTeen,'teen');
+		});
+
+		// Mapper UI to let user choose exact foot elements when automatic detection fails
+		const mapper = document.getElementById('mapper');
+		const mapperMsg = document.getElementById('mapperMsg');
+		const mapperReset = document.getElementById('mapperReset');
+		const mapperDone = document.getElementById('mapperDone');
+		let mappingState = 'none'; // 'none' | 'pickR' | 'pickL'
+
+		function enableMapper(){
+			mapper.style.display='block'; mapper.setAttribute('aria-hidden','false');
+			mappingState = 'pickR'; mapperMsg.textContent = 'Click the RIGHT foot in the image';
+			// add hover class to clickable candidates
+			const svg = svgRoot.querySelector('svg');
+			if(!svg) return;
+			svg.querySelectorAll('*').forEach(el=>el.classList.add('candidate'));
+			svg.addEventListener('click', onSvgPick);
+		}
+
+		function disableMapper(){
+			mapper.style.display='none'; mapper.setAttribute('aria-hidden','true');
+			mappingState = 'none';
+			const svg = svgRoot.querySelector('svg');
+			if(svg){ svg.removeEventListener('click', onSvgPick); svg.querySelectorAll('.candidate').forEach(el=>el.classList.remove('candidate')); }
+		}
+
+		function onSvgPick(e){
+			e.preventDefault(); e.stopPropagation();
+			const el = e.target;
+			if(mappingState==='pickR'){
+				feet.R = el; feet.R.dataset.mapped='R';
+				feet.R.classList.add('foot-inactive');
+				mappingState = 'pickL'; mapperMsg.textContent = 'Now click the LEFT foot in the image';
+				return;
+			}
+			if(mappingState==='pickL'){
+				feet.L = el; feet.L.dataset.mapped='L';
+				feet.L.classList.add('foot-inactive');
+				mappingState = 'none'; mapperMsg.textContent = 'Mapping complete — click Done';
+				// keep mapper visible until user clicks Done
+				return;
+			}
+		}
+
+		mapperReset.addEventListener('click', ()=>{
+			if(feet.R){ feet.R.classList.remove('foot-inactive','foot-active'); delete feet.R.dataset.mapped; feet.R=null; }
+			if(feet.L){ feet.L.classList.remove('foot-inactive','foot-active'); delete feet.L.dataset.mapped; feet.L=null; }
+			enableMapper();
+		});
+
+		mapperDone.addEventListener('click', ()=>{ disableMapper(); resetFeetStyle(); });
+
+		// Auto play teen on first visit after a short delay (if user clicks elsewhere, they can choose)
+		// Keep audio muted until user interacts if browser requires gesture.
+		(function init(){
+			// keep the subtle glow until user clicks the prompt
+		})();
+
+		// Accessibility: if user navigates by keyboard, allow Enter on prompt
+		startPrompt.tabIndex = 0;
+		startPrompt.addEventListener('keydown', e=>{ if(e.key==='Enter') startPrompt.click(); });
+
+	</script>
+</body>
+</html>
